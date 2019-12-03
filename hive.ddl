@@ -321,20 +321,21 @@ use cms;
 drop table if exists cms.cmsml;
 create table cms.cmsml stored as parquet  as 
 select 
-abs( hash(physician_profile_id))/9999999999999999999 profileid,
- abs( hash(physician_specialty))/9999999999999999999 specialty,
- abs( hash(covered_recipient_type))/9999999999999999999 hospitalordoctor, 
- abs( hash(associated_drug_or_biological_ndc_1))/9999999999999999999 drug,
+cast( abs(  hash(physician_profile_id))/9999999999999999999 as DOUBLE PRECISION) profileid,
+cast( abs( hash(physician_specialty))/9999999999999999999 as DOUBLE PRECISION) specialty,
+cast( abs( hash(covered_recipient_type))/9999999999999999999 as DOUBLE PRECISION) hospitalordoctor, 
+cast( abs( hash(associated_drug_or_biological_ndc_1))/9999999999999999999 as DOUBLE PRECISION) drug,
  case  when dispute_status_for_publication ='"No"' then 0 
   else 1
   end  disputed,
-   abs( hash(  recipient_state ))/9999999999999999999 state,
- abs( hash(  substr( recipient_zip_code, 2, 5 )))/9999999999999999999 myzip,
- abs( hash( substr(date_of_payment,3)))/9999999999999999999 pmtmonth,
+cast( abs( hash(  recipient_state ))/9999999999999999999 as DOUBLE PRECISION) state,
+cast( abs( hash(  substr( recipient_zip_code, 2, 5 )))/9999999999999999999 as DOUBLE PRECISION) myzip,
+cast( abs( hash( substr(date_of_payment,3)))/9999999999999999999 as DOUBLE PRECISION) pmtmonth,
 cast (total_amount_of_payment_usdollars as float ) pmtdollars
 from cms.generalpayments
 limit 100000
 ;
+
 select * from cms.cmsml limit 3;
 
 drop table cms.cmsml_parquet;

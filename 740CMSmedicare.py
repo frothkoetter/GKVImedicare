@@ -17,8 +17,6 @@ myspark = SparkSession\
     .appName("CMS_kmeans") \
     .getOrCreate()
 
-
-
 sc = myspark.sparkContext
 
 import time
@@ -59,7 +57,7 @@ pdsdf = cms1000.toPandas()
 sns.set(style="ticks" , color_codes=True)
 # this takes a long time to run:  
 # you can see it if you uncomment it
-# g = sns.pairplot(pdsdf,  hue="disputed" )
+g = sns.pairplot(pdsdf,  hue="disputed" )
 
 # predict if a payment will be disputed
 
