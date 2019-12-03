@@ -30,7 +30,11 @@ print ( myspark )
 myspark.sql("SET spark.sql.parquet.binaryAsString=true")
 
 # read in the data file from HDFS
-cmsdf = myspark.read.parquet ( "/user/hive/warehouse/cms.db/cmsml")
+#cmsdf = myspark.read.parquet ( "/user/hive/warehouse/cms.db/cmsml")
+# .  hdfs://ns/warehouse/tablespace/managed/hive/cms.db/cmsml""
+
+cmsdf = myspark.read.parquet ( "/tmp/cmsml")
+
 # also read from s3 mydf = myspark.read.parquet ( "s3a://impalas3a/sample_07_s3a_parquet")
 # print number of rows and type of object
 print ( cmsdf.count() )
@@ -55,7 +59,7 @@ pdsdf = cms1000.toPandas()
 sns.set(style="ticks" , color_codes=True)
 # this takes a long time to run:  
 # you can see it if you uncomment it
-g = sns.pairplot(pdsdf,  hue="disputed" )
+# g = sns.pairplot(pdsdf,  hue="disputed" )
 
 # predict if a payment will be disputed
 
@@ -147,5 +151,5 @@ import cdsw
 
 # Output
 filename = 'model.pkl'
-pickle.dump(model1, open(filename, 'wb'))
+#pickle.dump(model1, open(filename, 'wb'))
 cdsw.track_file(filename)
