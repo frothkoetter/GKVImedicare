@@ -1,16 +1,24 @@
-# copyright 2019 Martin Lurie
+
+
+# # Demo GKVi Abrechnung ML 
 # sample code not supported
 # use pairplot and logistic regression to 
 # predict if a claim will be disputed
 
 
-
-from __future__ import print_function
-!echo $PYTHON_PATH
 import os, sys
-#import path
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas
+import datetime
+import time
+
+
 from pyspark.sql import *
 from pyspark.sql.types import *
+
+start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+
 
 # # create spark sql session
 myspark = SparkSession\
@@ -20,17 +28,13 @@ myspark = SparkSession\
 
 sc = myspark.sparkContext
 
-import datetime
-import time
-start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
 
 sc.setLogLevel("ERROR")
 print ( myspark )
 # make spark print text instead of octal
 myspark.sql("SET spark.sql.parquet.binaryAsString=true")
 
-# read in the data file from HDFS
-#cmsdf = myspark.read.parquet ( "/user/hive/warehouse/cms.db/cmsml")
+# Read in the data 
 
 cmsdf = myspark.read.parquet ( "/tmp/cmsml")
 
@@ -55,7 +59,7 @@ print( "Gesamt Abgrechnungsfälle: %d, unstrittig: %d, strittig: %d " % (count, 
 # 
 # [DataFrame#sample() documentation](http://people.apache.org/~pwendell/spark-releases/spark-1.5.0-rc1-docs/api/python/pyspark.sql.html#pyspark.sql.DataFrame.sample)
 
-sample_data = cmsdf.sample(False, 0.01, 83).toPandas()
+sample_data = cmsdf.sample(False, 0.01, 83).toPandas().dropna()
 sample_data.transpose().head(23)
 
 # # Feature Visualization
@@ -67,49 +71,51 @@ categorical_cols = ["arzt", "fachgebiet", "krankenhaus_oder_arzt", "medikament",
 
 
 get_ipython().magic(u'matplotlib inline')
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas
-
 
 # # Verteilung Auszahlungen < 50€ 
 #
 
-payments_less_50 = sample_data[sample_data["auszahlung_euro"] < 50 ]
+payments_less_50 = sample_data[sample_data["auszahlung_euro"] < 50]
 
 ax = sns.distplot(payments_less_50["auszahlung_euro"].dropna(), kde=False, hist=True,)
 
-
-sns.boxplot(x="strittig", y="auszahlung_euro", data=sample_data)
-
-
-cms1000=myspark.sql('select fachgebiet, krankenhaus_oder_arzt, medikament, strittig, bundesland, auszahlung_monat, auszahlung_euro from cmsdata where auszahlung_euro <  10000 limit 10000')
-cms1000.show(3)
-# seaborn wants a pandas dataframe, not a spark dataframe
-# so convert
-pdsdf = sample_data.toPandas()
+ax = sns.boxplot(x="strittig", y="auszahlung_euro", data=payments_less_50)
 
 
-sns.set(style="ticks" , color_codes=True)
-# this takes a long time to run:  
-# you can see it if you uncomment it
-g = sns.pairplot(pdsdf,  hue="strittig" )
+# draw by catagories
 
-# predict if a payment will be disputed
+disputed = payments_less_50.query("strittig == '1'")
+un_disputed = payments_less_50.query("strittig == '0'").sample(frac=0.2).dropna()
 
-# we can skip this step since we used Impala to make the 
+
+# Draw density plots 
+
+sns.set(style="darkgrid")
+ax = sns.kdeplot(disputed.bundesland, disputed.auszahlung_euro,
+                 cmap="Reds", shade=True, shade_lowest=False)
+
+ax = sns.kdeplot(un_disputed.bundesland, un_disputed.auszahlung_euro,
+                 cmap="Blues", shade=True, shade_lowest=False)
+
+
+# # Predict if a payment will be disputed
+
+# we can skip this step since we used to make the 
 # data numeric and normalize
 # need to convert from text field to numeric
 # this is a common requirement when using sparkML
+#
 #from pyspark.ml.feature import StringIndexer
 # this will convert each unique string into a numeric
 #indexer = StringIndexer(inputCol="txtlabel", outputCol="label")
 #indexed = indexer.fit(mydf).transform(mydf)
 #indexed.show(5)
+
 # now we need to create  a  "label" and "features"
 # input for using the sparkML library
 
-cmsdispute=myspark.sql('select strittig label, fachgebiet, krankenhaus_oder_arzt, medikament, bundesland, auszahlung_monat, auszahlung_euro from cmsdata')
+
+#cmsdispute=myspark.sql('select strittig label, fachgebiet, krankenhaus_oder_arzt, medikament, bundesland, auszahlung_monat, auszahlung_euro from cmsdata')
 
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.linalg import Vectors
@@ -117,9 +123,15 @@ from pyspark.ml.linalg import Vectors
 assembler = VectorAssembler(
     inputCols=[ "fachgebiet", "krankenhaus_oder_arzt", "medikament", "bundesland", "auszahlung_monat", "auszahlung_euro"],
     outputCol="features")
-output = assembler.transform(cmsdispute)
+
+# build training data 
+
+train_data = cmsdf.withColumnRenamed("strittig", "label").sample(False, 0.1, 83).dropna()
+output = assembler.transform(train_data)
+
 # note the column headers - label and features are keywords
 print ( output.show(3) )
+
 from pyspark.ml.classification import LogisticRegression
 
 # Create a LogisticRegression instance. This instance is an Estimator.
@@ -187,7 +199,7 @@ print("areaUnderROC: " + str(trainingSummary.areaUnderROC))
 assembler = VectorAssembler(
     inputCols=[ "fachgebiet", "medikament"],
     outputCol="features")
-output = assembler.transform(cmsdispute)
+output = assembler.transform(train_data)
 model2 = lr.fit(output)
 trainingSummary = model2.summary
 
@@ -195,15 +207,11 @@ trainingSummary = model2.summary
 trainingSummary.roc.show()
 print("areaUnderROC: " + str(trainingSummary.areaUnderROC))
     
-import pickle
-import cdsw
-
-# Output
-filename = 'model.pkl'
-pickle.dump(model1, open(filename, 'wb'))
-cdsw.track_file(filename)
 
 
 end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
 total_time=(datetime.datetime.strptime(end_time,'%H:%M:%S') - datetime.datetime.strptime(start_time,'%H:%M:%S'))
 print ( "Gesamt Laufzeit: " + str(total_time) )
+
+
+myspark.stop()
