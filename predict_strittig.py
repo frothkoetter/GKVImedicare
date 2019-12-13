@@ -12,12 +12,12 @@ spark = SparkSession.builder \
 model = PipelineModel.load("file:///home/cdsw/models/cms_model_spark") 
 
 
-features = ["fachgebiet", "krankenhaus_oder_arzt", "medikament", 
+features = ["idx","fachgebiet", "krankenhaus_oder_arzt", "medikament", 
                        "bundesland", "auszahlung_monat", "auszahlung_euro" ]
 
 def predict(args):
-    account=args["feature"].split(",")
-    feature = spark.createDataFrame([account[:1] + list(map(float,account[1:6]))], features)
-    
+    parm=["feature",1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]
+    feature = spark.createDataFrame( [parm ], features)
+    feature.show()
     result=model.transform(feature).collect()[0].prediction
     return {"result" : result}

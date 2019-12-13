@@ -12,6 +12,7 @@ import seaborn as sns
 import pandas
 import datetime
 import time
+import numpy as np
 
 
 from pyspark.sql import *
@@ -23,7 +24,7 @@ start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
 # # create spark sql session
 myspark = SparkSession\
     .builder\
-    .appName("Abrechnungen_Analyze") \
+    .appName("Demo GKVI Abrechnungen Analyze") \
     .getOrCreate()
 
 sc = myspark.sparkContext
@@ -84,8 +85,8 @@ ax = sns.boxplot(x="strittig", y="auszahlung_euro", data=payments_less_50)
 
 # draw by catagories
 
-disputed = payments_less_50.query("strittig == '1'")
-un_disputed = payments_less_50.query("strittig == '0'").sample(frac=0.2).dropna()
+disputed = payments_less_50.query("strittig == '1'").dropna()
+un_disputed = payments_less_50.query("strittig == '0'").dropna().sample(frac=0.1)
 
 
 # Draw density plots 
@@ -94,7 +95,7 @@ sns.set(style="darkgrid")
 ax = sns.kdeplot(disputed.bundesland, disputed.auszahlung_euro,
                  cmap="Reds", shade=True, shade_lowest=False)
 
-ax = sns.kdeplot(un_disputed.bundesland, un_disputed.auszahlung_euro,
+ay = sns.kdeplot(un_disputed.bundesland, un_disputed.auszahlung_euro,
                  cmap="Blues", shade=True, shade_lowest=False)
 
 
@@ -115,8 +116,6 @@ ax = sns.kdeplot(un_disputed.bundesland, un_disputed.auszahlung_euro,
 # input for using the sparkML library
 
 
-#cmsdispute=myspark.sql('select strittig label, fachgebiet, krankenhaus_oder_arzt, medikament, bundesland, auszahlung_monat, auszahlung_euro from cmsdata')
-
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.linalg import Vectors
 
@@ -126,18 +125,16 @@ assembler = VectorAssembler(
 
 # build training data 
 
-train_data = cmsdf.withColumnRenamed("strittig", "label").sample(False, 0.1, 83).dropna()
+train_data = cmsdf.withColumnRenamed("strittig", "label").sample(False, 0.01, 83).dropna()
 output = assembler.transform(train_data)
-
-# note the column headers - label and features are keywords
-print ( output.show(3) )
 
 from pyspark.ml.classification import LogisticRegression
 
 # Create a LogisticRegression instance. This instance is an Estimator.
 lr = LogisticRegression(maxIter=10, regParam=0.01)
+
 # Print out the parameters, documentation, and any default values.
-print("LogisticRegression Parameter:\n" + lr.explainParams() + "\n")
+# print("LogisticRegression Parameter:\n" + lr.explainParams() + "\n")
 
 # Learn a LogisticRegression model. This uses the parameters stored in lr.
 model1 = lr.fit(output)
@@ -147,38 +144,17 @@ model1 = lr.fit(output)
 # we can view the parameters it used during fit().
 # This prints the parameter (name: value) pairs, where names are unique IDs for this
 # LogisticRegression instance.
-print("Model 1 fitting Phase beendet")
 #print(model1.extractParamMap())
 
 trainingSummary = model1.summary
 
 # Obtain the objective per iteration
 objectiveHistory = trainingSummary.objectiveHistory
+# # Model Objection Performance
 print("Training Objective History:")
-for objective in objectiveHistory:
-    print(objective)
+# plt.plot(objectiveHistory)
 
 # Obtain the receiver-operating characteristic as a dataframe and areaUnderROC.
-print("Training Summary (FPR, TPR) :")
-trainingSummary.roc.show()
-
-print("areaUnderROC: " + str(trainingSummary.areaUnderROC))
-
-prediction = model1.transform(output)
-prediction.show(3)
-result = prediction.select("label", "probability", "prediction") \
-    .collect()
-
-#print(result)
-i=0
-for row in result:
-   if ( row.label != row.prediction ):
-    print("label=%s, prob=%s, prediction=%s" \
-          % (row.label, row.probability, row.prediction))
-    i=i+1
-    if ( i > 10):
-      break
-
 # Plots True Positive Rate vs False Positive Rate for binary classification system
 # 
 # [More Info](https://en.wikipedia.org/wiki/Receiver_operating_characteristic)
@@ -191,10 +167,25 @@ for row in result:
 #     * .50-.60 = fail (F)
 # 
 
-trainingSummary.roc.show()
-print("areaUnderROC: " + str(trainingSummary.areaUnderROC))    
+print("areaUnderROC: " + str(trainingSummary.areaUnderROC))
 
+# # ROC plot
 
+roc = trainingSummary.roc.toPandas()
+plt.plot(roc['FPR'],roc['TPR'])
+plt.show()
+
+# # RECALL plot
+
+pr = trainingSummary.pr.toPandas()
+plt.plot(pr['recall'],pr['precision'])
+plt.show()
+
+prediction = model1.transform(output)
+result = prediction.select("label", "probability", "prediction") \
+    .collect()
+
+  
 # Now try with only 2 predictors
 assembler = VectorAssembler(
     inputCols=[ "fachgebiet", "medikament"],
@@ -204,9 +195,14 @@ model2 = lr.fit(output)
 trainingSummary = model2.summary
 
 # Obtain the receiver-operating characteristic as a dataframe and areaUnderROC.
-trainingSummary.roc.show()
+
 print("areaUnderROC: " + str(trainingSummary.areaUnderROC))
-    
+
+# # ROC plot
+
+roc = trainingSummary.roc.toPandas()
+plt.plot(roc['FPR'],roc['TPR'])
+plt.show()
 
 
 end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
