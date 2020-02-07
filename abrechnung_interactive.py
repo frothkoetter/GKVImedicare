@@ -6,7 +6,7 @@
 # predict if a claim will be disputed
 
 
-import os, sys
+import os, sys, subprocess
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas
@@ -21,11 +21,21 @@ from pyspark.sql.types import *
 start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
 
 
-# # create spark sql session
+#Set the user name which will be used to login to the HDFS Master.
+USER_NAME = subprocess.getoutput("klist | sed -n 's/.*principal://p' | cut -d@ -f1")
+print (USER_NAME)
+#FQDN of the HDFS Master
+REMOTE_HDFS_MASTER = 'frothkoetter-data-engineering-cluster-master0.frothkoe.a465-9q4k.cloudera.site'
+
+#Copy Hadoop config files into the CML session
+!scp -o "StrictHostKeyChecking no" -T $USER_NAME@$REMOTE_HDFS_MASTER:"/etc/hadoop/conf/core-site.xml /etc/hadoop/conf/hdfs-site.xml" /etc/hadoop/conf
+
 myspark = SparkSession\
     .builder\
-    .appName("Demo GKVI Abrechnungen Analyze") \
+    .appName("Demo GKVI Abrechnungen Analyze")\
+    .config("spark.authenticate","true")\
     .getOrCreate()
+  
 
 sc = myspark.sparkContext
 
@@ -37,7 +47,8 @@ myspark.sql("SET spark.sql.parquet.binaryAsString=true")
 
 # Read in the data 
 
-cmsdf = myspark.read.parquet ( "/tmp/cmsml")
+#Read the data from remote HDFS
+cmsdf = myspark.read.parquet("hdfs://" + REMOTE_HDFS_MASTER + "/tmp/cmsml/*")
 
 # # Basic DataFrame operations
 # 
