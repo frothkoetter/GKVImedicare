@@ -1,2 +1,2 @@
-# (c) Copyright 2017 CMSmedicare  Martin Lurie all rights reserved
+Demo CMS data 
 explore data from  https://openpaymentsdata.cms.gov/browse
