@@ -52,8 +52,14 @@ myspark.sql("SET spark.sql.parquet.binaryAsString=true")
 
 # Read in the data 
 
-#Read the data from remote HDFS
-cmsdf = myspark.read.parquet("/tmp/cmsml/*")
+#Read the data from Hive
+
+cmsdf = myspark.sql('select * from cms.abrechnungen')
+
+
+cmsdf.cache()
+cmsdf.createOrReplaceTempView('abrechnungen')
+cmsdf.printSchema()
 
 # # Basic DataFrame operations
 # 
