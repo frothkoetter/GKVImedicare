@@ -1,5 +1,5 @@
-drop table if exists cms.generalpayments;
 use cms;
+drop table if exists cms.generalpayments;
 create external  table generalpayments ( 
 change_type string,
 covered_recipient_type string,
@@ -84,5 +84,3 @@ location '/user/frothkoetter/cms.db/generalpayments'
 ;
 
 
-select * from generalpayments limit 3;
--- "new","covered recipient physician",,,,"132655","gregg","d","alzate",,"8745 aero drive","ste 200","san diego","ca","92123","united states",,,"medical doctor","allopathic & osteopathic physicians|radiology|diagnostic radiology","ca",,,,,"dfine, inc","100000000326","dfine, inc","ca","united states",90.87,"02/12/2016","1","in-kind items and services","food and beverage",,,,"no","no third party payment",,,,,"no","346039438","no","yes","covered","device","radiology","stabilit",,"covered","device","radiology","star tumor ablation system",,,,,,,,,,,,,,,,,"2016","06/30/2017"
